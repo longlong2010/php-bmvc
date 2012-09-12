@@ -182,7 +182,20 @@ PHP_MINFO_FUNCTION(bmvc)
 /* {{{ proto string confirm_bmvc_compiled(string arg)
    Return a string to confirm that the module is compiled in */
 PHP_METHOD(BMvcApp, __construct) {
+	zval* self = getThis();
+	zval* config = NULL;
 
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|a", &config) == FAILURE) {
+		return;
+	}
+
+	if (!config) {
+		zend_update_property_null(bmvc_app_entry_ptr, self, ZEND_STRL("_config") TSRMLS_CC);
+	} else {
+		zend_update_property(bmvc_app_entry_ptr, self, ZEND_STRL("_config"), config TSRMLS_CC);
+	}
+
+	RETURN_ZVAL(self, 1, 0);
 }
 
 PHP_METHOD(BMvcApp, run) {
@@ -191,12 +204,22 @@ PHP_METHOD(BMvcApp, run) {
 
 
 PHP_METHOD(BMvcRouter, __construct) {
+	zval* routes;
+	zval* self = getThis();
+
+	MAKE_STD_ZVAL(routes);
+	array_init(routes);
+	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_routes"), routes TSRMLS_CC);
+	zval_ptr_dtor(&routes);
+
+	RETURN_ZVAL(self, 1, 0);
 }
 
 PHP_METHOD(BMvcRouter, add) {
 	char* name;
 	int name_len;
 	zval* route;
+	zval* routes;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sz", &name, &name_len, &route)) {
 		return;
@@ -211,11 +234,45 @@ PHP_METHOD(BMvcRouter, add) {
 		RETURN_FALSE;
 	}
 
-	RETURN_TRUE;
+	routes = zend_read_property(bmvc_router_entry_ptr, getThis(), ZEND_STRL("_routes"), 1 TSRMLS_CC);
+
+	Z_ADDREF_P(route);
+	zend_hash_update(Z_ARRVAL_P(routes), name, name_len + 1, (void**) &route, sizeof(zval*), NULL);
+
+	RETURN_ZVAL(getThis(), 1, 0);
 }
 
 PHP_METHOD(BMvcRoute, __construct) {
+	char* pattern;
+	int pattern_len;
+	char* controller_name;
+	int controller_name_len;
+	char* action_name;
+	int action_name_len;
 
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sss", &pattern, &pattern_len, &controller_name, &controller_name_len, &action_name, &action_name_len) == FAILURE) {
+		return;
+	}
+	
+	zval* self = getThis();
+
+	zval* zpattern;
+	MAKE_STD_ZVAL(zpattern);
+	ZVAL_STRING(zpattern, pattern, pattern_len);
+
+	zval* zcontroller_name;
+	MAKE_STD_ZVAL(zcontroller_name);
+	ZVAL_STRING(zcontroller_name, controller_name, controller_name_len);
+
+	zval* zaction_name;
+	MAKE_STD_ZVAL(zaction_name);
+	ZVAL_STRING(zaction_name, action_name, action_name_len);
+
+	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_pattern"),  zpattern TSRMLS_CC);
+	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_controller_name"),  zcontroller_name TSRMLS_CC);
+	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_action_name"),  zaction_name TSRMLS_CC);
+
+	RETURN_ZVAL(self, 1, 0);
 }
 /* }}} */
 /* The previous line is meant for vim and emacs, so it can correctly fold and 
