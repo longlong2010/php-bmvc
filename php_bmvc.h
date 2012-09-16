@@ -52,6 +52,8 @@ PHP_METHOD(BMvcRoute, isMatch);
 PHP_METHOD(BMvcRouter, __construct);
 PHP_METHOD(BMvcRouter, addRoute);
 PHP_METHOD(BMvcRouter, getMatchingRoute);
+
+PHP_METHOD(BMvcController, __construct);
 /* 
   	Declare any global variables you may need between the BEGIN
 	and END macros here:     

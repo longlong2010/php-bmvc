@@ -38,7 +38,7 @@ static int le_bmvc;
 static zend_class_entry* bmvc_app_entry_ptr;
 static zend_class_entry* bmvc_router_entry_ptr;
 static zend_class_entry* bmvc_route_entry_ptr;
-
+static zend_class_entry* bmvc_controller_entry_ptr;
 /* {{{ bmvc_functions[]
  *
  * Every user visible function must have an entry in bmvc_functions[].
@@ -63,6 +63,11 @@ const zend_function_entry bmvc_router_class_methods[] = {
 const zend_function_entry bmvc_route_class_methods[] = {
 	PHP_ME(BMvcRoute, __construct, NULL, ZEND_ACC_PUBLIC)
 	PHP_ME(BMvcRoute, isMatch, NULL, ZEND_ACC_PUBLIC)
+	PHP_FE_END
+};
+
+const zend_function_entry bmvc_controller_class_methods[] = {
+	PHP_ME(BMvcController, __construct, NULL, ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
 /* }}} */
@@ -137,6 +142,10 @@ PHP_MINIT_FUNCTION(bmvc)
 	bmvc_router_entry_ptr = zend_register_internal_class(&bmvc_router_entry TSRMLS_CC);
 
 	zend_declare_property_null(bmvc_router_entry_ptr, ZEND_STRL("_routes"), ZEND_ACC_PROTECTED TSRMLS_CC);
+
+	zend_class_entry bmvc_controller_entry;
+	INIT_CLASS_ENTRY(bmvc_controller_entry, "BMvcController", bmvc_controller_class_methods);
+	bmvc_controller_entry_ptr = zend_register_internal_class(&bmvc_controller_entry TSRMLS_CC);
 
 	/* If you have INI entries, uncomment these lines 
 	REGISTER_INI_ENTRIES();
@@ -402,6 +411,10 @@ PHP_METHOD(BMvcRouter, getMatchingRoute) {
 		RETURN_ZVAL(*route, 1, 0);
 	}
 	RETURN_FALSE;
+}
+
+PHP_METHOD(BMvcController, __construct) {
+
 }
 /* }}} */
 /* The previous line is meant for vim and emacs, so it can correctly fold and 
