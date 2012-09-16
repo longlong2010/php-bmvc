@@ -125,6 +125,8 @@ PHP_MINIT_FUNCTION(bmvc)
 	bmvc_router_entry_ptr = zend_register_internal_class(&bmvc_router_entry TSRMLS_CC);
 
 
+	zend_declare_property_null(bmvc_router_entry_ptr, ZEND_STRL("_routes"), ZEND_ACC_PROTECTED TSRMLS_CC);
+
 	zend_class_entry bmvc_route_entry;
 	INIT_CLASS_ENTRY(bmvc_route_entry, "BMvcRoute", bmvc_route_class_methods);
 	bmvc_route_entry_ptr = zend_register_internal_class(&bmvc_route_entry TSRMLS_CC);
@@ -132,6 +134,8 @@ PHP_MINIT_FUNCTION(bmvc)
 	zend_declare_property_null(bmvc_route_entry_ptr, ZEND_STRL("_pattern"), ZEND_ACC_PROTECTED TSRMLS_CC);
 	zend_declare_property_null(bmvc_route_entry_ptr, ZEND_STRL("_controller_name"), ZEND_ACC_PROTECTED TSRMLS_CC);
 	zend_declare_property_null(bmvc_route_entry_ptr, ZEND_STRL("_action_name"), ZEND_ACC_PROTECTED TSRMLS_CC);
+	zend_declare_property_null(bmvc_route_entry_ptr, ZEND_STRL("_param"), ZEND_ACC_PROTECTED TSRMLS_CC);
+	zend_declare_property_null(bmvc_route_entry_ptr, ZEND_STRL("_map"), ZEND_ACC_PROTECTED TSRMLS_CC);
 
 
 	/* If you have INI entries, uncomment these lines 
@@ -220,7 +224,7 @@ PHP_METHOD(BMvcRouter, __construct) {
 
 	MAKE_STD_ZVAL(routes);
 	array_init(routes);
-	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_routes"), routes TSRMLS_CC);
+	zend_update_property(bmvc_router_entry_ptr, self, ZEND_STRL("_routes"), routes TSRMLS_CC);
 	zval_ptr_dtor(&routes);
 
 	RETURN_ZVAL(self, 1, 0);
@@ -262,11 +266,18 @@ PHP_METHOD(BMvcRoute, __construct) {
 	char* action_name;
 	int action_name_len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sss", &pattern, &pattern_len, &controller_name, &controller_name_len, &action_name, &action_name_len) == FAILURE) {
+	zval* map;
+
+	
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sssa", &pattern, &pattern_len, &controller_name, &controller_name_len, &action_name, &action_name_len, &map) == FAILURE) {
 		return;
 	}
-	
 	zval* self = getThis();
+
+	zval* param;	
+	MAKE_STD_ZVAL(param);
+	array_init(param);
+	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_param"), param TSRMLS_CC);
 
 	zval* zpattern;
 	MAKE_STD_ZVAL(zpattern);
@@ -283,7 +294,9 @@ PHP_METHOD(BMvcRoute, __construct) {
 	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_pattern"),  zpattern TSRMLS_CC);
 	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_controller_name"),  zcontroller_name TSRMLS_CC);
 	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_action_name"),  zaction_name TSRMLS_CC);
-
+	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_map"), map TSRMLS_CC);
+	
+	zval_ptr_dtor(&param);
 	RETURN_ZVAL(self, 1, 0);
 }
 
@@ -316,14 +329,16 @@ PHP_METHOD(BMvcRoute, isMatch) {
 		zval_ptr_dtor(&subparts);
 		RETURN_FALSE;
 	}
+
 	zval** name;
 	zval** ppzval;
 	char* key = NULL;
 	int key_len = 0;
 	long idx = 0;
+	zval* map = zend_read_property(bmvc_route_entry_ptr, self, ZEND_STRL("_map"), 1 TSRMLS_CC);
+	zval* param = zend_read_property(bmvc_route_entry_ptr, self, ZEND_STRL("_param"), 1 TSRMLS_CC);
 
 	HashTable* htb;
-	array_init(return_value);
 	htb = Z_ARRVAL_P(subparts);
 
 	for (zend_hash_internal_pointer_reset(htb); 
@@ -334,15 +349,18 @@ PHP_METHOD(BMvcRoute, isMatch) {
 		}
 		
 		if (zend_hash_get_current_key_ex(htb, &key, &key_len, &idx, 0, NULL) == HASH_KEY_IS_LONG) {
-			Z_ADDREF_P(*ppzval);
-			//zend_hash_update(Z_ARRVAL_P(return_value), "abc", 4, (void**)ppzval, sizeof(zval*), NULL);
+			if (zend_hash_index_find(Z_ARRVAL_P(map), idx, (void**)&name) == SUCCESS) {
+				Z_ADDREF_P(*ppzval);
+				zend_hash_update(Z_ARRVAL_P(param), Z_STRVAL_PP(name), Z_STRLEN_PP(name) + 1, (void**)ppzval, sizeof(zval*), NULL);
+			}
 		} else {
 			Z_ADDREF_P(*ppzval);
-			zend_hash_update(Z_ARRVAL_P(return_value), key, key_len, (void**)ppzval, sizeof(zval*), NULL);
+			zend_hash_update(Z_ARRVAL_P(param), key, key_len, (void**)ppzval, sizeof(zval*), NULL);
 		}
 	}
 	zval_ptr_dtor(&matches);
 	zval_ptr_dtor(&subparts);
+	RETURN_TRUE;
 }
 /* }}} */
 /* The previous line is meant for vim and emacs, so it can correctly fold and 
