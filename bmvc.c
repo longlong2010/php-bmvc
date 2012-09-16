@@ -24,6 +24,7 @@
 
 #include "php.h"
 #include "php_ini.h"
+#include "Zend/zend_interfaces.h"
 #include "ext/standard/info.h"
 #include "ext/pcre/php_pcre.h"
 #include "php_bmvc.h"
@@ -389,16 +390,16 @@ PHP_METHOD(BMvcRouter, getMatchingRoute) {
 			continue;
 		}
 	
-		zend_call_method_with_1_params(route, Z_OBJCE_PP(route), NULL, "isMatch", &ret, zurl);
-		RETURN_ZVAL(*route, 1, 0);
-		/*
+		zend_call_method_with_1_params(route, Z_OBJCE_PP(route), NULL, "ismatch", &ret, zurl);
+		
 		if (IS_BOOL != Z_TYPE_P(ret) || !Z_BVAL_P(ret)) {
 			zval_ptr_dtor(&ret);
 			continue;
 		}
 
-		zval_ptr_dtor(&ret);*/
-		RETURN_TRUE;
+		zval_ptr_dtor(&ret);
+
+		RETURN_ZVAL(*route, 1, 0);
 	}
 	RETURN_FALSE;
 }
