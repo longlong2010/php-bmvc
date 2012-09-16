@@ -54,7 +54,8 @@ const zend_function_entry bmvc_app_class_methods[] = {
 
 const zend_function_entry bmvc_router_class_methods[] = {
 	PHP_ME(BMvcRouter, __construct, NULL, ZEND_ACC_PUBLIC)
-	PHP_ME(BMvcRouter, add, NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(BMvcRouter, addRoute, NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(BMvcRouter, getMatchingRoute, NULL, ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
 
@@ -120,13 +121,6 @@ PHP_MINIT_FUNCTION(bmvc)
 
 	zend_declare_property_null(bmvc_app_entry_ptr, ZEND_STRL("_config"), ZEND_ACC_PROTECTED TSRMLS_CC);
 
-	zend_class_entry bmvc_router_entry;
-	INIT_CLASS_ENTRY(bmvc_router_entry, "BMvcRouter", bmvc_router_class_methods);
-	bmvc_router_entry_ptr = zend_register_internal_class(&bmvc_router_entry TSRMLS_CC);
-
-
-	zend_declare_property_null(bmvc_router_entry_ptr, ZEND_STRL("_routes"), ZEND_ACC_PROTECTED TSRMLS_CC);
-
 	zend_class_entry bmvc_route_entry;
 	INIT_CLASS_ENTRY(bmvc_route_entry, "BMvcRoute", bmvc_route_class_methods);
 	bmvc_route_entry_ptr = zend_register_internal_class(&bmvc_route_entry TSRMLS_CC);
@@ -137,6 +131,11 @@ PHP_MINIT_FUNCTION(bmvc)
 	zend_declare_property_null(bmvc_route_entry_ptr, ZEND_STRL("_param"), ZEND_ACC_PROTECTED TSRMLS_CC);
 	zend_declare_property_null(bmvc_route_entry_ptr, ZEND_STRL("_map"), ZEND_ACC_PROTECTED TSRMLS_CC);
 
+	zend_class_entry bmvc_router_entry;
+	INIT_CLASS_ENTRY(bmvc_router_entry, "BMvcRouter", bmvc_router_class_methods);
+	bmvc_router_entry_ptr = zend_register_internal_class(&bmvc_router_entry TSRMLS_CC);
+
+	zend_declare_property_null(bmvc_router_entry_ptr, ZEND_STRL("_routes"), ZEND_ACC_PROTECTED TSRMLS_CC);
 
 	/* If you have INI entries, uncomment these lines 
 	REGISTER_INI_ENTRIES();
@@ -217,47 +216,6 @@ PHP_METHOD(BMvcApp, run) {
 	php_printf("run!\n");
 }
 
-
-PHP_METHOD(BMvcRouter, __construct) {
-	zval* routes;
-	zval* self = getThis();
-
-	MAKE_STD_ZVAL(routes);
-	array_init(routes);
-	zend_update_property(bmvc_router_entry_ptr, self, ZEND_STRL("_routes"), routes TSRMLS_CC);
-	zval_ptr_dtor(&routes);
-
-	RETURN_ZVAL(self, 1, 0);
-}
-
-PHP_METHOD(BMvcRouter, add) {
-	char* name;
-	int name_len;
-	zval* route;
-	zval* routes;
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sz", &name, &name_len, &route)) {
-		return;
-	}
-
-	if (!name_len) {
-		RETURN_FALSE;
-	}
-
-	if (Z_TYPE_P(route) != IS_OBJECT || !instanceof_function(Z_OBJCE_P(route), bmvc_route_entry_ptr TSRMLS_CC)) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Expects a %s instance", bmvc_route_entry_ptr->name);
-		RETURN_FALSE;
-	}
-	zval* self = getThis();
-
-	routes = zend_read_property(bmvc_router_entry_ptr, self, ZEND_STRL("_routes"), 1 TSRMLS_CC);
-
-	Z_ADDREF_P(route);
-	zend_hash_update(Z_ARRVAL_P(routes), name, name_len + 1, (void**) &route, sizeof(zval*), NULL);
-
-	RETURN_ZVAL(getThis(), 1, 0);
-}
-
 PHP_METHOD(BMvcRoute, __construct) {
 	char* pattern;
 	int pattern_len;
@@ -267,17 +225,17 @@ PHP_METHOD(BMvcRoute, __construct) {
 	int action_name_len;
 
 	zval* map;
-
+	MAKE_STD_ZVAL(map);
+	array_init(map);
 	
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sssa", &pattern, &pattern_len, &controller_name, &controller_name_len, &action_name, &action_name_len, &map) == FAILURE) {
-		return;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sss|a", &pattern, &pattern_len, &controller_name, &controller_name_len, &action_name, &action_name_len, &map) == FAILURE) {
+		RETURN_FALSE;
 	}
 	zval* self = getThis();
 
 	zval* param;	
 	MAKE_STD_ZVAL(param);
 	array_init(param);
-	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_param"), param TSRMLS_CC);
 
 	zval* zpattern;
 	MAKE_STD_ZVAL(zpattern);
@@ -294,6 +252,7 @@ PHP_METHOD(BMvcRoute, __construct) {
 	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_pattern"),  zpattern TSRMLS_CC);
 	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_controller_name"),  zcontroller_name TSRMLS_CC);
 	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_action_name"),  zaction_name TSRMLS_CC);
+	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_param"), param TSRMLS_CC);
 	zend_update_property(bmvc_route_entry_ptr, self, ZEND_STRL("_map"), map TSRMLS_CC);
 	
 	zval_ptr_dtor(&param);
@@ -303,7 +262,6 @@ PHP_METHOD(BMvcRoute, __construct) {
 PHP_METHOD(BMvcRoute, isMatch) {
 	char* url;
 	int url_len;
-
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &url, &url_len) == FAILURE) {
 		return;
 	}
@@ -361,6 +319,88 @@ PHP_METHOD(BMvcRoute, isMatch) {
 	zval_ptr_dtor(&matches);
 	zval_ptr_dtor(&subparts);
 	RETURN_TRUE;
+}
+
+PHP_METHOD(BMvcRouter, __construct) {
+	zval* routes;
+	zval* self = getThis();
+
+	MAKE_STD_ZVAL(routes);
+	array_init(routes);
+	zend_update_property(bmvc_router_entry_ptr, self, ZEND_STRL("_routes"), routes TSRMLS_CC);
+	zval_ptr_dtor(&routes);
+
+	RETURN_ZVAL(self, 1, 0);
+}
+
+PHP_METHOD(BMvcRouter, addRoute) {
+	char* name;
+	int name_len;
+	zval* route;
+	zval* routes;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sz", &name, &name_len, &route) == FAILURE) {
+		return;
+	}
+
+	if (!name_len) {
+		RETURN_FALSE;
+	}
+
+	if (Z_TYPE_P(route) != IS_OBJECT || !instanceof_function(Z_OBJCE_P(route), bmvc_route_entry_ptr TSRMLS_CC)) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Expects a %s instance", bmvc_route_entry_ptr->name);
+		RETURN_FALSE;
+	}
+	zval* self = getThis();
+
+	routes = zend_read_property(bmvc_router_entry_ptr, self, ZEND_STRL("_routes"), 1 TSRMLS_CC);
+
+	Z_ADDREF_P(route);
+	zend_hash_update(Z_ARRVAL_P(routes), name, name_len + 1, (void**) &route, sizeof(zval*), NULL);
+
+	RETURN_ZVAL(self, 1, 0);
+}
+
+PHP_METHOD(BMvcRouter, getMatchingRoute) {
+	char* url;
+	int url_len;
+	
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &url, &url_len) == FAILURE) {
+		return;
+	}
+
+	zval* self = getThis();
+	zval* routes;
+	zval** route;
+	zval* ret;
+	HashTable* htb;
+
+	zval* zurl;
+	MAKE_STD_ZVAL(zurl);
+	ZVAL_STRING(zurl, url, url_len);
+
+	routes = zend_read_property(bmvc_router_entry_ptr, self,  ZEND_STRL("_routes"), 1 TSRMLS_CC);
+	htb = Z_ARRVAL_P(routes);
+	for (zend_hash_internal_pointer_end(htb); 
+			zend_hash_has_more_elements(htb) == SUCCESS; 
+			zend_hash_move_backwards(htb)) {
+
+		if (zend_hash_get_current_data(htb, (void**)&route) == FAILURE) {
+			continue;
+		}
+	
+		zend_call_method_with_1_params(route, Z_OBJCE_PP(route), NULL, "isMatch", &ret, zurl);
+		RETURN_ZVAL(*route, 1, 0);
+		/*
+		if (IS_BOOL != Z_TYPE_P(ret) || !Z_BVAL_P(ret)) {
+			zval_ptr_dtor(&ret);
+			continue;
+		}
+
+		zval_ptr_dtor(&ret);*/
+		RETURN_TRUE;
+	}
+	RETURN_FALSE;
 }
 /* }}} */
 /* The previous line is meant for vim and emacs, so it can correctly fold and 
