@@ -126,6 +126,7 @@ PHP_MINIT_FUNCTION(bmvc)
 	bmvc_app_entry_ptr = zend_register_internal_class(&bmvc_app_entry TSRMLS_CC);
 
 	zend_declare_property_null(bmvc_app_entry_ptr, ZEND_STRL("_config"), ZEND_ACC_PROTECTED TSRMLS_CC);
+	zend_declare_property_null(bmvc_app_entry_ptr, ZEND_STRL("_router"), ZEND_ACC_PROTECTED TSRMLS_CC);
 
 	zend_class_entry bmvc_route_entry;
 	INIT_CLASS_ENTRY(bmvc_route_entry, "BMvcRoute", bmvc_route_class_methods);
@@ -205,6 +206,25 @@ PHP_MINFO_FUNCTION(bmvc)
 /* Every user-visible function in PHP should document itself in the source */
 /* {{{ proto string confirm_bmvc_compiled(string arg)
    Return a string to confirm that the module is compiled in */
+zval* bmvc_router_new(zval* this_ptr TSRMLS_DC) {
+	zval* routes;
+	zval* instance;
+
+	if (this_ptr) {
+		instance = this_ptr;
+	} else {
+		MAKE_STD_ZVAL(instance);
+		object_init_ex(instance, bmvc_router_entry_ptr);
+	}
+
+	MAKE_STD_ZVAL(routes);
+	array_init(routes);
+	zend_update_property(bmvc_router_entry_ptr, instance, ZEND_STRL("_routes"), routes TSRMLS_CC);
+	zval_ptr_dtor(&routes);
+	
+	return instance;
+}
+
 PHP_METHOD(BMvcApp, __construct) {
 	zval* self = getThis();
 	zval* config = NULL;
@@ -218,6 +238,12 @@ PHP_METHOD(BMvcApp, __construct) {
 	} else {
 		zend_update_property(bmvc_app_entry_ptr, self, ZEND_STRL("_config"), config TSRMLS_CC);
 	}
+
+	zval* router;
+	router = bmvc_router_new(NULL TSRMLS_CC);
+	zend_update_property(bmvc_app_entry_ptr, self, ZEND_STRL("_router"), router TSRMLS_CC);
+	
+	zval_ptr_dtor(&router);
 
 	RETURN_ZVAL(self, 1, 0);
 }
@@ -332,15 +358,7 @@ PHP_METHOD(BMvcRoute, isMatch) {
 }
 
 PHP_METHOD(BMvcRouter, __construct) {
-	zval* routes;
-	zval* self = getThis();
-
-	MAKE_STD_ZVAL(routes);
-	array_init(routes);
-	zend_update_property(bmvc_router_entry_ptr, self, ZEND_STRL("_routes"), routes TSRMLS_CC);
-	zval_ptr_dtor(&routes);
-
-	RETURN_ZVAL(self, 1, 0);
+	bmvc_router_new(getThis() TSRMLS_CC);
 }
 
 PHP_METHOD(BMvcRouter, addRoute) {
