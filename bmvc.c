@@ -266,6 +266,62 @@ PHP_METHOD(BMvcApp, run) {
 	MAKE_STD_ZVAL(zurl);
 	ZVAL_STRING(zurl, url, url_len);
 	zend_call_method_with_1_params(&router, Z_OBJCE_P(router), NULL, "getmatchingroute", &route, zurl);
+	if (Z_TYPE_P(route) == IS_OBJECT) {
+		zval* zcontroller_name;
+		zval* zaction_name;
+		zend_call_method_with_0_params(&route, Z_OBJCE_P(route), NULL, "getcontroller", &zcontroller_name);
+		zend_call_method_with_0_params(&route, Z_OBJCE_P(route), NULL, "getaction", &zaction_name);
+
+		char* controller_name;
+		char* action_name;
+		controller_name = Z_STRVAL_P(zcontroller_name);
+		action_name = Z_STRVAL_P(zaction_name);
+		
+		char* class = NULL;
+		char* class_lowercase = NULL;
+		int class_len = 0;	
+		zend_class_entry** ce = NULL;
+		
+		class_len = spprintf(&class, 0, "%s%s", controller_name, "Controller");
+		class_lowercase = zend_str_tolower_dup(class, class_len);
+
+		int rc = 0;
+		if (zend_hash_find(EG(class_table), class_lowercase, class_len + 1, (void*)&ce) == SUCCESS) {
+			zval* icontroller;
+			MAKE_STD_ZVAL(icontroller);
+			object_init_ex(icontroller, *ce);
+			
+			char* method = NULL;
+			int method_len = 0;
+			method_len = spprintf(&method, 0, "%s%s", action_name, "Action");
+			char* method_lowercase = zend_str_tolower_dup(method, method_len);
+			zend_function* fptr;
+			if (zend_hash_find((&(*ce)->function_table), method_lowercase, method_len + 1, (void**)&fptr) == SUCCESS) {
+				zval* ret;
+				zval* zmethod;
+				MAKE_STD_ZVAL(zmethod);
+				ZVAL_STRING(zmethod, method_lowercase, method_len);
+				call_user_function_ex(&(*ce)->function_table, &icontroller, zmethod, &ret, 0, NULL, 1, NULL TSRMLS_CC);
+				zval_ptr_dtor(&ret);
+				rc = 1;
+			}
+			efree(method);
+			efree(method_lowercase);
+		}
+		
+		efree(class);
+		efree(class_lowercase);
+		zval_ptr_dtor(&route);
+		zval_ptr_dtor(&zcontroller_name);
+		zval_ptr_dtor(&zaction_name);
+
+		if (rc == 1) {
+			RETURN_TRUE;
+		} else {
+			RETURN_FALSE;
+		}
+	}
+	RETURN_FALSE;
 }
 
 PHP_METHOD(BMvcRoute, __construct) {
@@ -382,7 +438,7 @@ PHP_METHOD(BMvcRoute, getController) {
 PHP_METHOD(BMvcRoute, getAction) {
 	zval* self = getThis();
 	zval* zaction_name = zend_read_property(bmvc_route_entry_ptr, self, ZEND_STRL("_action_name"), 1 TSRMLS_CC);
-	RETURN_STRING(Z_STRVAL_P(zaction_name), Z_STRVAL_P(zaction_name));
+	RETURN_STRING(Z_STRVAL_P(zaction_name), Z_STRLEN_P(zaction_name));
 }
 
 PHP_METHOD(BMvcRouter, __construct) {
