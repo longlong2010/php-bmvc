@@ -63,6 +63,8 @@ const zend_function_entry bmvc_router_class_methods[] = {
 const zend_function_entry bmvc_route_class_methods[] = {
 	PHP_ME(BMvcRoute, __construct, NULL, ZEND_ACC_PUBLIC)
 	PHP_ME(BMvcRoute, isMatch, NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(BMvcRoute, getController, NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(BMvcRoute, getAction, NULL, ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
 
@@ -249,7 +251,21 @@ PHP_METHOD(BMvcApp, __construct) {
 }
 
 PHP_METHOD(BMvcApp, run) {
-	php_printf("run!\n");
+	char* url;
+	int url_len;
+	
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &url, &url_len) == FAILURE) {
+		RETURN_FALSE;
+	}
+
+	zval* self = getThis();	
+	zval* router = zend_read_property(bmvc_app_entry_ptr, self, ZEND_STRL("_router"), 1 TSRMLS_CC);
+
+	zval* route;
+	zval* zurl;
+	MAKE_STD_ZVAL(zurl);
+	ZVAL_STRING(zurl, url, url_len);
+	zend_call_method_with_1_params(&router, Z_OBJCE_P(router), NULL, "getmatchingroute", &route, zurl);
 }
 
 PHP_METHOD(BMvcRoute, __construct) {
@@ -355,6 +371,18 @@ PHP_METHOD(BMvcRoute, isMatch) {
 	zval_ptr_dtor(&matches);
 	zval_ptr_dtor(&subparts);
 	RETURN_TRUE;
+}
+
+PHP_METHOD(BMvcRoute, getController) {
+	zval* self = getThis();
+	zval* zcontroller_name = zend_read_property(bmvc_route_entry_ptr, self, ZEND_STRL("_controller_name"), 1 TSRMLS_CC);
+	RETURN_STRING(Z_STRVAL_P(zcontroller_name), Z_STRLEN_P(zcontroller_name));
+}
+
+PHP_METHOD(BMvcRoute, getAction) {
+	zval* self = getThis();
+	zval* zaction_name = zend_read_property(bmvc_route_entry_ptr, self, ZEND_STRL("_action_name"), 1 TSRMLS_CC);
+	RETURN_STRING(Z_STRVAL_P(zaction_name), Z_STRVAL_P(zaction_name));
 }
 
 PHP_METHOD(BMvcRouter, __construct) {

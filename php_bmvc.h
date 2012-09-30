@@ -48,6 +48,8 @@ PHP_METHOD(BMvcApp, run);
 
 PHP_METHOD(BMvcRoute, __construct);
 PHP_METHOD(BMvcRoute, isMatch);
+PHP_METHOD(BMvcRoute, getController);
+PHP_METHOD(BMvcRoute, getAction);
 
 PHP_METHOD(BMvcRouter, __construct);
 PHP_METHOD(BMvcRouter, addRoute);
