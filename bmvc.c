@@ -65,6 +65,7 @@ const zend_function_entry bmvc_route_class_methods[] = {
 	PHP_ME(BMvcRoute, isMatch, NULL, ZEND_ACC_PUBLIC)
 	PHP_ME(BMvcRoute, getController, NULL, ZEND_ACC_PUBLIC)
 	PHP_ME(BMvcRoute, getAction, NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(BMvcRoute, getParam, NULL, ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
 
@@ -269,8 +270,11 @@ PHP_METHOD(BMvcApp, run) {
 	if (Z_TYPE_P(route) == IS_OBJECT) {
 		zval* zcontroller_name;
 		zval* zaction_name;
+		zval* zparam;
+
 		zend_call_method_with_0_params(&route, Z_OBJCE_P(route), NULL, "getcontroller", &zcontroller_name);
 		zend_call_method_with_0_params(&route, Z_OBJCE_P(route), NULL, "getaction", &zaction_name);
+		zend_call_method_with_0_params(&route, Z_OBJCE_P(route), NULL, "getparam", &zparam);
 
 		char* controller_name;
 		char* action_name;
@@ -284,6 +288,23 @@ PHP_METHOD(BMvcApp, run) {
 		
 		class_len = spprintf(&class, 0, "%s%s", controller_name, "Controller");
 		class_lowercase = zend_str_tolower_dup(class, class_len);
+
+
+		if (zend_hash_find(EG(class_table), class_lowercase, class_len + 1, (void*)&ce) != SUCCESS) {
+			zval* ret;
+			zval* zfunc_name;
+			zval* zargs[1];
+
+			MAKE_STD_ZVAL(ret);
+			MAKE_STD_ZVAL(zfunc_name);
+			ZVAL_STRING(zfunc_name, "spl_autoload_call", sizeof("spl_autoload_call"));
+			MAKE_STD_ZVAL(zargs[0]);
+			ZVAL_STRING(zargs[0], class, class_len);
+
+			call_user_function(EG(function_table), NULL, zfunc_name, ret, 1, zargs TSRMLS_CC);
+			zval_ptr_dtor(&zargs[0]);
+			zval_ptr_dtor(&ret);
+		}
 
 		int rc = 0;
 		if (zend_hash_find(EG(class_table), class_lowercase, class_len + 1, (void*)&ce) == SUCCESS) {
@@ -299,9 +320,16 @@ PHP_METHOD(BMvcApp, run) {
 			if (zend_hash_find((&(*ce)->function_table), method_lowercase, method_len + 1, (void**)&fptr) == SUCCESS) {
 				zval* ret;
 				zval* zmethod;
+				zval* zargs[1];
+
+				MAKE_STD_ZVAL(ret);
 				MAKE_STD_ZVAL(zmethod);
 				ZVAL_STRING(zmethod, method_lowercase, method_len);
-				call_user_function_ex(&(*ce)->function_table, &icontroller, zmethod, &ret, 0, NULL, 1, NULL TSRMLS_CC);
+
+				zval_add_ref(&zparam);
+				zargs[0] = zparam;
+
+				call_user_function(&(*ce)->function_table, &icontroller, zmethod, ret, 1, zargs TSRMLS_CC);
 				zval_ptr_dtor(&ret);
 				rc = 1;
 			}
@@ -439,6 +467,12 @@ PHP_METHOD(BMvcRoute, getAction) {
 	zval* self = getThis();
 	zval* zaction_name = zend_read_property(bmvc_route_entry_ptr, self, ZEND_STRL("_action_name"), 1 TSRMLS_CC);
 	RETURN_STRING(Z_STRVAL_P(zaction_name), Z_STRLEN_P(zaction_name));
+}
+
+PHP_METHOD(BMvcRoute, getParam) {
+	zval* self = getThis();
+	zval* param = zend_read_property(bmvc_route_entry_ptr, self, ZEND_STRL("_param"), 1 TSRMLS_CC);
+	RETURN_ZVAL(param, 1, 0);
 }
 
 PHP_METHOD(BMvcRouter, __construct) {
