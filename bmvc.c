@@ -129,7 +129,6 @@ PHP_MINIT_FUNCTION(bmvc)
 	bmvc_app_entry_ptr = zend_register_internal_class(&bmvc_app_entry TSRMLS_CC);
 
 	zend_declare_property_null(bmvc_app_entry_ptr, ZEND_STRL("_config"), ZEND_ACC_PROTECTED TSRMLS_CC);
-	zend_declare_property_null(bmvc_app_entry_ptr, ZEND_STRL("_router"), ZEND_ACC_PROTECTED TSRMLS_CC);
 
 	zend_class_entry bmvc_route_entry;
 	INIT_CLASS_ENTRY(bmvc_route_entry, "BMvcRoute", bmvc_route_class_methods);
@@ -242,25 +241,22 @@ PHP_METHOD(BMvcApp, __construct) {
 		zend_update_property(bmvc_app_entry_ptr, self, ZEND_STRL("_config"), config TSRMLS_CC);
 	}
 
-	zval* router;
-	router = bmvc_router_new(NULL TSRMLS_CC);
-	zend_update_property(bmvc_app_entry_ptr, self, ZEND_STRL("_router"), router TSRMLS_CC);
-	
-	zval_ptr_dtor(&router);
-
 	RETURN_ZVAL(self, 1, 0);
 }
 
 PHP_METHOD(BMvcApp, run) {
 	char* url;
 	int url_len;
-	
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &url, &url_len) == FAILURE) {
+	zval* router;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zs", &router, &url, &url_len) == FAILURE) {
 		RETURN_FALSE;
 	}
 
-	zval* self = getThis();	
-	zval* router = zend_read_property(bmvc_app_entry_ptr, self, ZEND_STRL("_router"), 1 TSRMLS_CC);
+	if (Z_TYPE_P(router) != IS_OBJECT || !instanceof_function(Z_OBJCE_P(router), bmvc_router_entry_ptr TSRMLS_CC)) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Expects a %s instance", bmvc_router_entry_ptr->name);
+		RETURN_FALSE;
+	}
 
 	zval* route;
 	zval* zurl;
